@@ -1,44 +1,31 @@
 import zmq
 
-context = zmq.Context()
-socket = context.socket(zmq.REP)
-socket.connect("tcp://broker:5556")
+c = zmq.Context(); s = c.socket(zmq.REP)
+s.connect("tcp://broker:5556")
 
 tasks = []
-
-while True:
-    msg = socket.recv_string()
-    print(f"Mensagem recebida: {msg}", flush=True)
-    cmd, sep, rest = msg.partition(":")
-    cmd = cmd.strip().upper()
-
-    if cmd == "ADD" and sep:
-        task = rest.strip()
-        tasks.append(task)
-        resp = f"OK ADDED {len(tasks)-1}"
-    elif cmd == "REMOVE" and sep:
-        arg = rest.strip()
-        if arg.isdigit():
-            idx = int(arg)
-            if 0 <= idx < len(tasks):
-                removed = tasks.pop(idx)
-                resp = f"OK REMOVED {removed}"
+while 1:
+    m = s.recv_string()
+    parts = m.split(":", 1)
+    cmd = parts[0].upper()
+    resp = "ERROR"
+    if cmd == "ADD" and len(parts) > 1:
+        tasks.append(parts[1])
+        resp = "OK"
+    elif cmd == "REMOVE" and len(parts) > 1:
+        a = parts[1]
+        if a.isdigit():
+            i = int(a)
+            if 0 <= i < len(tasks):
+                tasks.pop(i); resp = "OK"
             else:
-                resp = "ERROR index out of range"
+                resp = "ERROR"
         else:
             try:
-                tasks.remove(arg)
-                resp = f"OK REMOVED {arg}"
+                tasks.remove(a); resp = "OK"
             except ValueError:
-                resp = "ERROR task not found"
+                resp = "ERROR"
     elif cmd == "LIST":
-        if tasks:
-            lines = [f"{i}: {t}" for i, t in enumerate(tasks)]
-            resp = "\n".join(lines)
-        else:
-            resp = "EMPTY"
-    else:
-        resp = "ERROR unknown command"
-
-    socket.send_string(resp)
+        resp = "\n".join(f"{i}:{t}" for i,t in enumerate(tasks)) or "EMPTY"
+    s.send_string(resp)
 
